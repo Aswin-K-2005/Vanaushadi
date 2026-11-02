@@ -1,0 +1,11 @@
+tensorflow>=2.16
+keras>=3.0
+numpy
+pandas
+pillow
+scikit-learn
+matplotlib
+opencv-python-headless
+tifffile
+flask
+gunicorn

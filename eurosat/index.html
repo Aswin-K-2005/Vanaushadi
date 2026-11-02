@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Land Use Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#EEF1F2; --paper:#FFFFFF; --ink:#16212A; --muted:#5F6F7A; --line:#D5DCE0;
+    --accent:#1F6E8C; --accent-soft:#DCEBF1; --danger:#C2412D; --warn:#C98A12;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --bg:#0F1519; --paper:#172027; --ink:#E6ECEF; --muted:#93A3AD; --line:#26323A;
+      --accent:#5DB3D3; --accent-soft:#16303B; --danger:#E77A64; --warn:#E6B54F;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#0F1519; --paper:#172027; --ink:#E6ECEF; --muted:#93A3AD; --line:#26323A;
+    --accent:#5DB3D3; --accent-soft:#16303B; --danger:#E77A64; --warn:#E6B54F;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 'IBM Plex Sans',system-ui,sans-serif}
+  header{padding:22px 16px 0;max-width:1100px;margin:0 auto}
+  header h1{margin:0;font-size:22px;font-weight:600}
+  header p{margin:4px 0 0;color:var(--muted);font-size:14px}
+  main{max-width:1100px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .tab{background:none;border:0;padding:10px 14px;font:inherit;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent}
+  .tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent);font-weight:600}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .drop{border:1.5px dashed var(--line);border-radius:8px;padding:18px;text-align:center;color:var(--muted);cursor:pointer;display:block}
+  .drop:hover{border-color:var(--accent)}
+  .drop input{display:none}
+  .drop img{max-width:100%;max-height:240px;min-width:160px;image-rendering:pixelated;border-radius:6px;display:block;margin:0 auto 8px}
+  button.primary{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+  button.primary:disabled{opacity:.5;cursor:default}
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  label.inline{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
+  input[type=number]{width:72px;padding:6px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);font:inherit}
+  .big{font-size:26px;font-weight:600}
+  .muted{color:var(--muted);font-size:13px}
+  .bar{height:8px;background:var(--accent-soft);border-radius:4px;overflow:hidden;margin:4px 0 10px}
+  .bar>i{display:block;height:100%;background:var(--accent)}
+  .heat img{width:100%;max-width:320px;border-radius:6px;image-rendering:pixelated}
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:16px}
+  .panels figure{margin:0}
+  .panels img{width:100%;border-radius:6px;image-rendering:pixelated;border:1px solid var(--line)}
+  .panels figcaption{font-size:12.5px;color:var(--muted);margin-top:4px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
+  .stat{background:var(--bg);border-radius:8px;padding:10px 12px}
+  .stat b{display:block;font-size:20px;font-family:'IBM Plex Mono',monospace}
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:14px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  td.num{text-align:right;font-family:'IBM Plex Mono',monospace}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:12px;height:12px;border-radius:2px;display:inline-block}
+  .err{color:var(--danger);margin-top:10px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <h1>Land Use Watch</h1>
+  <p>Sentinel-2 land-use classification (EuroSAT, 10 classes) with Grad-CAM explanations and change detection.</p>
+</header>
+<main>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-tab="classify">Classify a patch</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="change">Detect change</button>
+  </div>
+
+  <section id="classify">
+    <div class="grid2">
+      <div class="card">
+        <label class="drop" id="patch-drop">
+          <input type="file" id="patch-file" accept="image/*">
+          <img id="patch-preview" class="hidden" alt="">
+          <span id="patch-hint">Choose a satellite patch (a EuroSAT image or a ~640 m × 640 m crop at 10 m/px)</span>
+        </label>
+        <div class="row"><button class="primary" id="classify-btn" disabled>Classify</button></div>
+        <div class="err" id="classify-err"></div>
+      </div>
+      <div class="card" id="classify-result">
+        <p class="muted">Results appear here.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="change" class="hidden">
+    <div class="card">
+      <div class="grid2">
+        <label class="drop"><input type="file" id="before-file" accept="image/*"><img id="before-preview" class="hidden" alt=""><span>Before image (earlier date)</span></label>
+        <label class="drop"><input type="file" id="after-file" accept="image/*"><img id="after-preview" class="hidden" alt=""><span>After image (later date, same area)</span></label>
+      </div>
+      <div class="row">
+        <label class="inline">Confidence threshold <input type="number" id="threshold" value="0.7" min="0" max="1" step="0.05"></label>
+        <label class="inline">Metres per pixel <input type="number" id="gsd" value="10" min="1" step="1"></label>
+        <button class="primary" id="change-btn" disabled>Detect change</button>
+      </div>
+      <p class="muted">Both images must cover exactly the same extent. Each 64 × 64 px tile (640 m × 640 m, 40.96 ha) is classified on both dates. A tile counts as changed only if its label differs and both predictions clear the threshold.</p>
+      <div class="err" id="change-err"></div>
+    </div>
+    <div id="change-result"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let CLASSES = [];
+fetch('/info').then(r => r.json()).then(d => { CLASSES = d.classes; }).catch(() => {});
+
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', x === t));
+  ['classify', 'change'].forEach(id => $(id).classList.toggle('hidden', id !== t.dataset.tab));
+}));
+
+function preview(input, img, onChange) {
+  input.addEventListener('change', () => {
+    const f = input.files[0];
+    if (!f) return;
+    img.src = URL.createObjectURL(f);
+    img.classList.remove('hidden');
+    onChange();
+  });
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const nameOf = id => (CLASSES.find(c => c.id === id) || {name: id}).name;
+const fmt = n => n.toLocaleString(undefined, {maximumFractionDigits: 1});
+
+// ---------- classify ----------
+preview($('patch-file'), $('patch-preview'), () => { $('classify-btn').disabled = false; $('patch-hint').textContent = 'Choose another image'; });
+$('classify-btn').addEventListener('click', async () => {
+  const fd = new FormData(); fd.append('file', $('patch-file').files[0]);
+  $('classify-btn').disabled = true; $('classify-err').textContent = '';
+  $('classify-result').innerHTML = '<p class="muted">Running model…</p>';
+  try {
+    const [p, g] = await Promise.all([
+      fetch('/predict', {method: 'POST', body: fd}).then(r => r.json()),
+      fetch('/gradcam', {method: 'POST', body: fd}).then(r => r.json()),
+    ]);
+    if (p.error || g.error) throw new Error(p.error || g.error);
+    const bars = p.top3.map(t => `<div class="muted">${esc(t.name)} · ${t.confidence}%</div><div class="bar"><i style="width:${t.confidence}%"></i></div>`).join('');
+    $('classify-result').innerHTML = `
+      <div class="muted">Predicted land use</div>
+      <div class="big">${esc(p.prediction.name)}</div>
+      <div style="margin:10px 0 6px">${bars}</div>
+      <div class="heat"><img src="${g.heatmap}" alt="Grad-CAM heatmap">
+      <div class="muted">Grad-CAM: red regions pushed the model hardest toward “${esc(g.explained_class)}”.</div></div>`;
+  } catch (e) {
+    $('classify-result').innerHTML = '<p class="muted">Results appear here.</p>';
+    $('classify-err').textContent = e.message;
+  } finally { $('classify-btn').disabled = false; }
+});
+
+// ---------- change ----------
+const ready = () => { $('change-btn').disabled = !($('before-file').files[0] && $('after-file').files[0]); };
+preview($('before-file'), $('before-preview'), ready);
+preview($('after-file'), $('after-preview'), ready);
+$('change-btn').addEventListener('click', async () => {
+  const fd = new FormData();
+  fd.append('before', $('before-file').files[0]); fd.append('after', $('after-file').files[0]);
+  fd.append('threshold', $('threshold').value); fd.append('gsd', $('gsd').value);
+  $('change-btn').disabled = true; $('change-err').textContent = '';
+  $('change-result').innerHTML = '<div class="card" style="margin-top:16px"><p class="muted">Classifying tiles on both dates…</p></div>';
+  try {
+    const d = await fetch('/change', {method: 'POST', body: fd}).then(r => r.json());
+    if (d.error) throw new Error(d.error);
+    const s = d.summary, im = d.images;
+    const used = new Set();
+    Object.entries(s.area_before_ha).forEach(([k, v]) => { if (v > 0) used.add(k); });
+    Object.entries(s.area_after_ha).forEach(([k, v]) => { if (v > 0) used.add(k); });
+    const legend = CLASSES.filter(c => used.has(c.id)).map(c => `<span><i style="background:rgb(${c.color.join(',')})"></i>${esc(c.name)}</span>`).join('');
+    const trans = s.transitions.length ? s.transitions.map(t => `<tr><td>${esc(nameOf(t.from))}</td><td>${esc(nameOf(t.to))}</td><td class="num">${t.tiles}</td><td class="num">${fmt(t.hectares)}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="muted">No confident changes detected.</td></tr>';
+    const net = Object.entries(s.net_change_ha).filter(([, v]) => v !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .map(([k, v]) => `<tr><td>${esc(nameOf(k))}</td><td class="num">${fmt(s.area_before_ha[k])}</td><td class="num">${fmt(s.area_after_ha[k])}</td><td class="num">${v > 0 ? '+' : ''}${fmt(v)}</td></tr>`).join('')
+      || '<tr><td colspan="4" class="muted">No net change.</td></tr>';
+    $('change-result').innerHTML = `
+      <div class="card" style="margin-top:16px">
+        <div class="stats">
+          <div class="stat"><span class="muted">Tiles analysed</span><b>${s.tiles_total}</b></div>
+          <div class="stat"><span class="muted">Changed</span><b>${s.tiles_changed}</b></div>
+          <div class="stat"><span class="muted">Uncertain</span><b>${s.tiles_uncertain}</b></div>
+          <div class="stat"><span class="muted">Area changed</span><b>${fmt(s.area_changed_ha)} ha</b></div>
+        </div>
+        <div class="panels">
+          <figure><img src="${im.before}" alt=""><figcaption>Before</figcaption></figure>
+          <figure><img src="${im.after}" alt=""><figcaption>After</figcaption></figure>
+          <figure><img src="${im.map_before}" alt=""><figcaption>Land use, before</figcaption></figure>
+          <figure><img src="${im.map_after}" alt=""><figcaption>Land use, after</figcaption></figure>
+          <figure><img src="${im.change}" alt=""><figcaption>Changed (red) · uncertain (amber)</figcaption></figure>
+        </div>
+        <div class="legend">${legend}</div>
+        <div class="grid2" style="margin-top:8px">
+          <div><table><thead><tr><th>From</th><th>To</th><th class="num">Tiles</th><th class="num">ha</th></tr></thead><tbody>${trans}</tbody></table></div>
+          <div><table><thead><tr><th>Class</th><th class="num">Before ha</th><th class="num">After ha</th><th class="num">Net</th></tr></thead><tbody>${net}</tbody></table></div>
+        </div>
+      </div>`;
+  } catch (e) {
+    $('change-result').innerHTML = '';
+    $('change-err').textContent = e.message;
+  } finally { ready(); }
+});
+</script>
+</body>
+</html>
